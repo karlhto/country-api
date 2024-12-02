@@ -1,0 +1,62 @@
+openapi: "3.1.0"
+info:
+  title: "country_api API"
+  description: "country_api API"
+  version: "1.0.0"
+servers:
+- url: "https://country_api"
+paths:
+  /v1/countries/europe:
+    get:
+      description: ""
+      parameters:
+      - name: "sort_by"
+        in: "query"
+        required: false
+        schema:
+          type: "string"
+        example: "name"
+      - name: "sort_order"
+        in: "query"
+        required: false
+        schema:
+          type: "string"
+        example: "asc"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/Country"
+  /v1/currencies:
+    get:
+      description: ""
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Map_String"
+components:
+  schemas:
+    Country:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+        currencies:
+          type: "array"
+          items:
+            type: "string"
+      required:
+      - "name"
+      - "currencies"
+    Map:
+      type: "object"
+      properties: {}
+    Map_String:
+      type: "string"

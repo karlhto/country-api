@@ -1,24 +1,32 @@
-package karlhto
+package karlhto.client
 
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
+import io.ktor.client.call.body
+import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.request
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
+import io.ktor.util.logging.KtorSimpleLogger
+import karlhto.data.source.SourceCountry
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.util.concurrent.TimeUnit
 
-@Serializable(with = CountrySerializer::class)
-data class Country(val name: String, val region, val currencies: List<String>)
-
-class Client {
-    private val client = HttpClient(CIO) {
+/**
+ * A client for fetching country data from the RestCountries API, with internal cache.
+ *
+ * The cache invalidates after 1 hour.
+ */
+class RestCountriesClient(
+    engine: HttpClientEngine
+) {
+    private val logger = KtorSimpleLogger(this::class.qualifiedName!!)
+    private val client = HttpClient(engine) {
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true
@@ -27,43 +35,34 @@ class Client {
     }
 
     private val mutex = Mutex()
-    private var _cache = emptyList<Country>()
+    private var countryCache = emptyList<SourceCountry>()
     private var lastCacheTime = 0L
 
-    // TODO: Consider moving this to a separate class from data manipulation to limit direct access to cache
-    private val countryList: List<Country>
+    /**
+     * This property ensures that the cache is populated and up-to-date before returning the list.
+     */
+    val sourceCountryList: List<SourceCountry>
         get() = runBlocking {
             mutex.withLock {
-                if (_cache.isEmpty() || isCacheExpired()) {
+                if (countryCache.isEmpty() || isCacheExpired()) {
                     populateCache()
                 }
-                _cache
+                countryCache
             }
         }
-
-    fun getCountriesByRegion(region: String) =
-        countryList.filter { it.region == region }.map { Pair(it.name, it.currencies) }
-
-    fun getSortedListOfCountries() =
-        countryList.sortedBy { it.name }
-
-    fun getListOfCurrenciesWithCountries() =
-        countryList.flatMap { country ->
-            country.currencies.map { currency -> Pair(currency, country.name) }
-        }.groupBy({ it.first }, { it.second })
 
     private suspend fun populateCache() {
         val response = client.get("https://restcountries.com/v3.1/all?fields=name,currencies,region")
         if (response.status != HttpStatusCode.OK) {
-            // If we have data in cache, we can ignore the error, but still try to fetch next time
-            if (_cache.isNotEmpty()) {
+            if (countryCache.isNotEmpty()) {
+                logger.warn("Failed to fetch data from ${response.request.url}, continuing to use cached data")
                 return
             }
             throw IllegalStateException("Failed to fetch data from ${response.request.url}")
         }
 
-        val countries: List<Country> = Json.decodeFromString(response.toString())
-        _cache = countries
+        val countries: List<SourceCountry> = response.body()
+        countryCache = countries
         lastCacheTime = System.currentTimeMillis()
     }
 

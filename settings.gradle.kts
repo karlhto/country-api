@@ -1,1 +1,1 @@
-rootProject.name = "ztl"
+rootProject.name = "country-api"
