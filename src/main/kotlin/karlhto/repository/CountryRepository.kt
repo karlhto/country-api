@@ -13,8 +13,7 @@ enum class Region {
     OCEANIA;
 
     companion object {
-        fun fromString(region: String): Region = entries.find { it.name.lowercase() == region.lowercase() }
-            ?: throw IllegalArgumentException("Invalid region")
+        fun fromString(region: String?): Region? = entries.find { it.name.lowercase() == region?.lowercase() }
     }
 }
 

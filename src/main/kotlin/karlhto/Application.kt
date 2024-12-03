@@ -6,6 +6,7 @@ import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.netty.EngineMain
+import io.ktor.server.plugins.NotFoundException
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.openapi.openAPI
 import io.ktor.server.plugins.statuspages.StatusPages
@@ -20,7 +21,11 @@ fun main(args: Array<String>): Unit = EngineMain.main(args)
 fun Application.module() {
     install(StatusPages) {
         exception<Throwable> { call, cause ->
-            call.respondText(text = "500: $cause", status = HttpStatusCode.InternalServerError)
+            if (cause is NotFoundException) {
+                call.respondText(text = "404: ${cause.message}", status = HttpStatusCode.NotFound)
+            } else {
+                call.respondText(text = "500: $cause", status = HttpStatusCode.InternalServerError)
+            }
         }
     }
     install(ContentNegotiation) {
